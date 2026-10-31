@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wreck-It Ralph: Misi Istinja' Arked Retro (Tahun 2)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Press Start 2P for 8-bit Retro Arcade aesthetic -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <!-- MediaPipe Face Mesh & Camera Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive, monospace;
+            background-color: #050510;
+            color: #ffffff;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        /* Arcade Cabinet Frame Styling */
+        .arcade-border {
+            border: 6px solid #ff0055;
+            box-shadow: 0 0 20px #ff0055, inset 0 0 15px #ff0055;
+        }
+
+        .neon-title {
+            text-shadow: 0 0 5px #fff, 0 0 10px #ff0055, 0 0 20px #ff0055, 0 0 30px #ff0055;
+        }
+
+        .neon-gold {
+            text-shadow: 0 0 5px #fff, 0 0 10px #ffcc00, 0 0 20px #ffcc00;
+        }
+
+        /* CRT Overlay Effect */
+        .crt-overlay {
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            ), linear-gradient(
+                90deg,
+                rgba(255, 0, 0, 0.03),
+                rgba(0, 255, 0, 0.01),
+                rgba(0, 0, 255, 0.03)
+            );
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Mirrored webcam feed */
+        .mirror {
+            transform: scaleX(-1);
+        }
+
+        /* Pixelated Button Pulse */
+        @keyframes pixelPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+        }
+        .animate-pulse-pixel {
+            animation: pixelPulse 1.5s infinite;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ff0055;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 text-white relative bg-slate-950">
+
+    <!-- MAIN ARCADE CABINET CONTAINER -->
+    <div class="w-full max-w-4xl bg-slate-900 arcade-border rounded-3xl p-3 sm:p-5 relative z-10 flex flex-col items-center shadow-[0_0_50px_rgba(255,0,85,0.4)]">
+        
+        <!-- ARCADE MARQUEE HEADER -->
+        <header class="w-full flex flex-col sm:flex-row items-center justify-between border-b-4 border-pink-600 pb-3 mb-3 gap-2 bg-slate-950 p-3 rounded-2xl">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl sm:text-3xl animate-bounce">👊</span>
+                <div>
+                    <h1 class="text-xs sm:text-base text-yellow-300 neon-gold tracking-wider">
+                        FIX-IT RALPH: MISI ISTINJAK!
+                    </h1>
+                    <p class="text-[9px] sm:text-[10px] text-cyan-400 font-sans font-bold mt-1">
+                        Pendidikan Islam Tahun 2 • Arked Kebersihan Diri
+                    </p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button id="soundToggleBtn" onclick="toggleAudio()" class="bg-purple-950 hover:bg-purple-800 text-yellow-300 px-2.5 py-1.5 rounded-lg border-2 border-purple-500 text-[10px] transition">
+                    🔊 BUNYI: ON
+                </button>
+                <button id="ctrlToggleBtn" onclick="toggleControlMode()" class="bg-indigo-950 hover:bg-indigo-800 text-cyan-300 px-2.5 py-1.5 rounded-lg border-2 border-cyan-500 text-[10px] transition">
+                    🎮 MOD: KEYBOARD
+                </button>
+            </div>
+        </header>
+
+        <!-- TOP HUD STATS BAR -->
+        <div id="hudBar" class="w-full flex flex-wrap justify-between items-center bg-black border-2 border-yellow-400 px-3 py-2 rounded-xl mb-3 text-[10px] sm:text-xs">
+            <!-- LEVEL BADGE -->
+            <div class="flex items-center gap-1 sm:gap-2">
+                <span class="text-slate-400">LEVEL:</span>
+                <span id="hudLevel" class="text-yellow-400">1 (MUDAH)</span>
+            </div>
+            <!-- SCOREBOARD -->
+            <div class="flex items-center gap-1 sm:gap-2">
+                <span class="text-slate-400">MARKAH:</span>
+                <span id="hudScore" class="text-green-400 text-sm">0000</span>
+            </div>
+            <!-- LIVES / HEARTS -->
+            <div class="flex items-center gap-1">
+                <span class="text-slate-400 mr-1">NYAWA:</span>
+                <span id="hudHearts" class="text-sm sm:text-base">💖 💖 💖</span>
+            </div>
+            <!-- TIMER (FOR LEVEL 2 & 3) -->
+            <div id="timerContainer" class="hidden flex items-center gap-1">
+                <span class="text-slate-400">MASA:</span>
+                <span id="hudTimer" class="text-red-500 font-bold text-sm animate-pulse">15s</span>
+            </div>
+        </div>
+
+        <!-- MAIN GAME CANVAS & SCREEN AREA -->
+        <div class="relative w-full aspect-[16/10] bg-black rounded-xl overflow-hidden border-4 border-slate-800 shadow-2xl flex items-center justify-center">
+            
+            <!-- CRT SCANLINE OVERLAY EFFECT -->
+            <div class="absolute inset-0 crt-overlay z-20 pointer-events-none"></div>
+
+            <!-- INTERACTIVE GAME CANVAS -->
+            <canvas id="gameCanvas" width="800" height="500" class="w-full h-full block bg-slate-950"></canvas>
+
+            <!-- WEBCAM PIP PREVIEW OVERLAY (Bottom Right) -->
+            <div id="webcamPip" class="hidden absolute bottom-3 right-3 w-28 h-24 sm:w-36 sm:h-28 bg-black/90 border-2 border-yellow-400 rounded-xl overflow-hidden shadow-2xl flex flex-col items-center justify-center z-30">
+                <video id="webcamVideo" class="w-full h-full object-cover mirror opacity-85" playsinline muted></video>
+                <div class="absolute bottom-0 inset-x-0 bg-black/90 text-[8px] text-center text-yellow-300 py-0.5" id="pipStatusText">
+                    KAPALA DETECT
+                </div>
+                <!-- Direction Indicator Badge -->
+                <div id="headDirectionIcon" class="absolute top-1 left-1 text-xs bg-black/80 px-1.5 py-0.5 rounded border border-yellow-400 text-yellow-300">
+                    😐
+                </div>
+            </div>
+
+            <!-- START SCREEN OVERLAY -->
+            <div id="startScreen" class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30">
+                <div class="text-yellow-400 text-lg sm:text-2xl mb-3 neon-gold animate-pulse-pixel leading-relaxed">
+                    WRECK-IT RALPH:<br>MISI ISTINJAK ARKED!
+                </div>
+                <div class="text-cyan-300 text-[10px] sm:text-xs mb-6 max-w-lg font-sans leading-relaxed">
+                    Bantu Ralph tumbuk kotak **JAWAPAN BETUL** untuk membersihkan bangunan dan menguasai ilmu Istinja'!
+                </div>
+
+                <div class="bg-slate-900 border-2 border-pink-500 p-3 sm:p-4 rounded-xl max-w-md text-left text-[9px] sm:text-[11px] leading-relaxed mb-6 space-y-2 text-slate-200 font-sans shadow-xl">
+                    <p class="text-yellow-300 font-bold font-mono text-xs flex items-center gap-1">🕹️ KAWALAN ARKED:</p>
+                    <p>1. **Head Tracking (Webcam)**: Pusing/sengetkan kepala ke <span class="text-cyan-400 font-bold">KIRI</span> atau <span class="text-cyan-400 font-bold">KANAN</span> untuk gerakkan Ralph.</p>
+                    <p>2. **Mekanik Tumbuk (Dwell Timer)**: Tahan kedudukan kepala pada kotak jawapan selama <span class="text-yellow-400 font-bold">1.5 Saat</span> untuk mengesahkan tumbukan!</p>
+                    <p>3. **Keyboard Fallback**: Kunci <span class="text-cyan-400 font-bold">Anak Panah Kiri / Kanan</span> & Tekan <span class="text-yellow-400 font-bold">SPACEBAR</span> untuk tumbuk serta-merta.</p>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                    <button onclick="startGame('camera')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl border-b-4 border-emerald-800 text-[10px] font-bold transition transform hover:scale-105 shadow-lg">
+                        📷 MAIN GUNA WEBCAM
+                    </button>
+                    <button onclick="startGame('keyboard')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl border-b-4 border-indigo-800 text-[10px] font-bold transition transform hover:scale-105 shadow-lg">
+                        ⌨️ MAIN GUNA KEYBOARD
+                    </button>
+                </div>
+            </div>
+
+            <!-- LEVEL TRANSITION OVERLAY -->
+            <div id="levelOverlay" class="hidden absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center z-30">
+                <div class="text-4xl sm:text-5xl mb-3">🧱</div>
+                <h2 id="levelTitle" class="text-lg sm:text-2xl text-yellow-300 neon-gold mb-3">LEVEL 1</h2>
+                <p id="levelDesc" class="text-xs sm:text-sm text-cyan-200 mb-6 max-w-md font-sans leading-relaxed">
+                    Kelajuan Perlahan. Teks Besar & Jelas. Sedia untuk belajar tentang Asas Istinja'!
+                </p>
+                <button onclick="continueToLevel()" class="bg-yellow-400 hover:bg-yellow-300 text-black font-bold px-6 py-3 rounded-xl text-xs border-b-4 border-yellow-600 transition transform hover:scale-105 shadow-2xl">
+                    MULA TUMBUK! 👊
+                </button>
+            </div>
+
+            <!-- GAME OVER / VICTORY OVERLAY -->
+            <div id="endScreen" class="hidden absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center z-30">
+                <div id="endEmoji" class="text-5xl sm:text-6xl mb-3 animate-bounce">👑</div>
+                <h2 id="endTitle" class="text-xl sm:text-3xl text-yellow-300 neon-gold mb-2">JUARA ARKED!</h2>
+                <p id="endSubtitle" class="text-xs sm:text-sm text-emerald-300 mb-6 font-sans">Tahniah! Ralph berjaya membersihkan semua blok jawapan istinja'!</p>
+                
+                <div class="bg-slate-900 border-2 border-yellow-400 rounded-xl p-4 mb-6 w-full max-w-xs space-y-3 text-[10px] sm:text-xs font-mono">
+                    <div class="flex justify-between text-slate-300">
+                        <span>JUMLAH MARKAH:</span>
+                        <span id="finalScore" class="text-yellow-400 font-bold">0000</span>
+                    </div>
+                    <div class="flex justify-between text-slate-300">
+                        <span>SOALAN BETUL:</span>
+                        <span id="finalAccuracy" class="text-emerald-400 font-bold">10 / 10</span>
+                    </div>
+                    <div class="flex justify-between text-slate-300">
+                        <span>GRED ARKED:</span>
+                        <span id="finalRank" class="text-cyan-300 font-bold">S-RANK 🌟</span>
+                    </div>
+                </div>
+
+                <button onclick="resetGame()" class="bg-pink-600 hover:bg-pink-500 text-white font-bold px-8 py-3.5 rounded-xl text-xs border-b-4 border-pink-800 transition transform hover:scale-105 shadow-xl">
+                    🔄 MAIN SEMULA
+                </button>
+            </div>
+
+        </div>
+
+        <!-- FOOTER INSTRUCTIONS -->
+        <footer class="w-full mt-3 flex flex-col sm:flex-row justify-between items-center text-[9px] sm:text-[10px] text-slate-400 gap-2 px-2">
+            <div>
+                💡 TIP ARKED: <span class="text-yellow-300 font-sans font-bold">Tumbuk blok jawapan yang BETUL mengikut hukum Syarak!</span>
+            </div>
+            <div id="statusIndicator" class="text-emerald-400 font-bold">
+                ● STATUS: ARKED SIAP
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- SCRIPT FOR WEB AUDIO, MEDIAPIPE & GAME ENGINE -->
+    <script>
+        /* ==========================================================================
+           1. 8-BIT RETRO SYNTHESIZER (WEB AUDIO API)
+           ========================================================================== */
+        class RetroAudio {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playMove() {
+                if (!this.enabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(300, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+
+            playPunch() {
+                if (!this.enabled || !this.ctx) return;
+                // Noise / Impact Smash Sound
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(30, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playCorrect() {
+                if (!this.enabled || !this.ctx) return;
+                // 8-bit Powerup Coin Cheer (E5 -> G5 -> C6)
+                const notes = [659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.08);
+                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.08 + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.08);
+                    osc.stop(this.ctx.currentTime + idx * 0.08 + 0.15);
+                });
+            }
+
+            playWrong() {
+                if (!this.enabled || !this.ctx) return;
+                // 8-bit Buzzer Crash
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(70, this.ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playVictory() {
+                if (!this.enabled || !this.ctx) return;
+                const notes = [523.25, 659.25, 783.99, 880.00, 1046.50];
+                let time = this.ctx.currentTime;
+                notes.forEach((f) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(f, time);
+                    gain.gain.setValueAtTime(0.2, time);
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(time);
+                    osc.stop(time + 0.2);
+                    time += 0.12;
+                });
+            }
+
+            playGameOver() {
+                if (!this.enabled || !this.ctx) return;
+                const freqs = [250, 210, 170, 130];
+                let time = this.ctx.currentTime;
+                freqs.forEach((f) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(f, time);
+                    gain.gain.setValueAtTime(0.2, time);
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.22);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(time);
+                    osc.stop(time + 0.22);
+                    time += 0.2;
+                });
+            }
+        }
+
+        const audio = new RetroAudio();
+
+        function toggleAudio() {
+            audio.init();
+            audio.enabled = !audio.enabled;
+            document.getElementById('soundToggleBtn').innerText = audio.enabled ? "🔊 BUNYI: ON" : "🔇 BUNYI: OFF";
+        }
+
+        /* ==========================================================================
+           2. QUESTION DATABASE (10 QUESTIONS / 3 LEVELS - ISTINJAK TAHUN 2)
+           ========================================================================== */
+        const QUESTIONS_DATABASE = [
+            // LEVEL 1: MUDAH (Q1 - Q3) [Slow Speed, Big Clear Text]
+            {
+                level: 1,
+                question: "Apakah hukum beristinjak selepas membuang air?",
+                leftChoice: { text: "WAJIB", isCorrect: true },
+                rightChoice: { text: "SUNAT", isCorrect: false }
+            },
+            {
+                level: 1,
+                question: "Apakah bahan utama yang paling suci untuk beristinjak?",
+                leftChoice: { text: "Air Sirap", isCorrect: false },
+                rightChoice: { text: "Air Mutlak", isCorrect: true }
+            },
+            {
+                level: 1,
+                question: "Tangan manakah yang digalakkan untuk membersihkan najis?",
+                leftChoice: { text: "Tangan Kiri", isCorrect: true },
+                rightChoice: { text: "Tangan Kanan", isCorrect: false }
+            },
+
+            // LEVEL 2: SEDERHANA (Q4 - Q7) [15 Seconds Timer]
+            {
+                level: 2,
+                question: "Bahan manakah BOLEH digunakan untuk beristinjak jika tiada air?",
+                leftChoice: { text: "Botol Plastik", isCorrect: false },
+                rightChoice: { text: "Batu / Tisu Kesat", isCorrect: true }
+            },
+            {
+                level: 2,
+                question: "Bahan manakah DILARANG (HARAM) digunakan untuk beristinjak?",
+                leftChoice: { text: "Roti / Makanan", isCorrect: true },
+                rightChoice: { text: "Daun Kering", isCorrect: false }
+            },
+            {
+                level: 2,
+                question: "Beristinjak dengan air mesti membersihkan najis sehingga hilang bau, warna dan...?",
+                leftChoice: { text: "Rasa", isCorrect: true },
+                rightChoice: { text: "Rupa", isCorrect: false }
+            },
+            {
+                level: 2,
+                question: "Berapakah bilangan sapuan minimum jika beristinjak guna batu atau tisu?",
+                leftChoice: { text: "1 Kali Sapuan", isCorrect: false },
+                rightChoice: { text: "3 Kali Sapuan", isCorrect: true }
+            },
+
+            // LEVEL 3: SUSAH (Q8 - Q10) [10 Seconds Fast Timer]
+            {
+                level: 3,
+                question: "Apabila hendak masuk ke dalam tandas, kita mestilah melangkah dengan...?",
+                leftChoice: { text: "Kaki Kiri", isCorrect: true },
+                rightChoice: { text: "Kaki Kanan", isCorrect: false }
+            },
+            {
+                level: 3,
+                question: "Antara berikut, manakah PERBUATAN DILARANG semasa berada di dalam tandas?",
+                leftChoice: { text: "Diam dan Cepat", isCorrect: false },
+                rightChoice: { text: "Bercakap & Menyanyi", isCorrect: true }
+            },
+            {
+                level: 3,
+                question: "Apakah HIKMAH (kebaikan) utama apabila kita sentiasa beristinjak dengan bersih?",
+                leftChoice: { text: "Solat Sah & Sihat", isCorrect: true },
+                rightChoice: { text: "Dapat Hadiah & Duit", isCorrect: false }
+            }
+        ];
+
+        /* ==========================================================================
+           3. GAME STATE MANAGEMENT
+           ========================================================================== */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let gameState = {
+            status: 'START', // START, LEVEL_INTRO, PLAYING, GAME_OVER, VICTORY
+            controlMode: 'keyboard', // 'camera' or 'keyboard'
+            currentQuestionIdx: 0,
+            score: 0,
+            lives: 3,
+            currentLevel: 1,
+            timer: 15,
+            timerInterval: null,
+            correctCount: 0,
+
+            // Ralph Character Controls & Position
+            ralphX: 400,
+            targetRalphX: 400,
+            ralphY: 370,
+            selectedSide: 'CENTER', // 'LEFT', 'CENTER', 'RIGHT'
+            isPunching: false,
+            punchAnimFrame: 0,
+
+            // Dwell Timer Mechanics
+            dwellTimer: 0,
+            dwellDuration: 1.5, // 1.5 seconds hold required for webcam
+            lastTimestamp: 0,
+
+            // Visual Effects / Dust Particles
+            particles: []
+        };
+
+        function setupCurrentQuestion() {
+            const q = QUESTIONS_DATABASE[gameState.currentQuestionIdx];
+            gameState.currentLevel = q.level;
+
+            // Update HUD level badge
+            const levelText = gameState.currentLevel === 1 ? "1 (MUDAH)" : gameState.currentLevel === 2 ? "2 (SEDERHANA)" : "3 (SUSAH)";
+            document.getElementById('hudLevel').innerText = levelText;
+
+            // Timer setup for Level 2 & 3
+            clearInterval(gameState.timerInterval);
+            const timerContainer = document.getElementById('timerContainer');
+            if (gameState.currentLevel >= 2) {
+                timerContainer.classList.remove('hidden');
+                gameState.timer = gameState.currentLevel === 2 ? 15 : 10;
+                document.getElementById('hudTimer').innerText = gameState.timer + "s";
+                gameState.timerInterval = setInterval(() => {
+                    if (gameState.status === 'PLAYING') {
+                        gameState.timer--;
+                        document.getElementById('hudTimer').innerText = gameState.timer + "s";
+                        if (gameState.timer <= 0) {
+                            clearInterval(gameState.timerInterval);
+                            handleTimeOut();
+                        }
+                    }
+                }, 1000);
+            } else {
+                timerContainer.classList.add('hidden');
+            }
+
+            gameState.dwellTimer = 0;
+            gameState.selectedSide = 'CENTER';
+            gameState.targetRalphX = 400;
+            gameState.isPunching = false;
+        }
+
+        /* ==========================================================================
+           4. MEDIAPIPE FACE MESH HEAD TRACKING
+           ========================================================================== */
+        let cameraObj = null;
+        let faceMeshObj = null;
+
+        function initMediaPipe() {
+            const videoElement = document.getElementById('webcamVideo');
+            
+            faceMeshObj = new FaceMesh({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+            });
+
+            faceMeshObj.setOptions({
+                maxNumFaces: 1,
+                refineLandmarks: false,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            faceMeshObj.onResults(onFaceResults);
+
+            cameraObj = new Camera(videoElement, {
+                onFrame: async () => {
+                    if (gameState.controlMode === 'camera') {
+                        await faceMeshObj.send({ image: videoElement });
+                    }
+                },
+                width: 320,
+                height: 240
+            });
+
+            cameraObj.start().then(() => {
+                document.getElementById('pipStatusText').innerText = "WEBCAM AKTIF";
+                document.getElementById('statusIndicator').innerText = "● STATUS: WEBCAM DIHUBUNGKAN";
+            }).catch(err => {
+                console.warn("Webcam access error:", err);
+                alert("Gagal mengakses Kamera Webcam. Mod ditukar ke Keyboard secara automatik.");
+                setControlMode('keyboard');
+            });
+        }
+
+        function onFaceResults(results) {
+            if (gameState.status !== 'PLAYING') return;
+
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const landmarks = results.multiFaceLandmarks[0];
+                const nose = landmarks[1];
+                const normalizedX = 1 - nose.x; // Mirrored coordinate
+
+                const icon = document.getElementById('headDirectionIcon');
+
+                if (normalizedX < 0.42) {
+                    // Head moved/tilted LEFT
+                    updateSelectedSide('LEFT');
+                    icon.innerText = '⬅️';
+                } else if (normalizedX > 0.58) {
+                    // Head moved/tilted RIGHT
+                    updateSelectedSide('RIGHT');
+                    icon.innerText = '➡️';
+                } else {
+                    // Center
+                    updateSelectedSide('CENTER');
+                    icon.innerText = '😐';
+                }
+            }
+        }
+
+        function toggleControlMode() {
+            const newMode = gameState.controlMode === 'keyboard' ? 'camera' : 'keyboard';
+            setControlMode(newMode);
+        }
+
+        function setControlMode(mode) {
+            gameState.controlMode = mode;
+            const pip = document.getElementById('webcamPip');
+            const btn = document.getElementById('ctrlToggleBtn');
+
+            if (mode === 'camera') {
+                pip.classList.remove('hidden');
+                btn.innerText = "📷 MOD: WEBCAM";
+                if (!cameraObj) {
+                    initMediaPipe();
+                }
+            } else {
+                pip.classList.add('hidden');
+                btn.innerText = "🎮 MOD: KEYBOARD";
+                document.getElementById('statusIndicator').innerText = "● STATUS: KEYBOARD AKTIF";
+            }
+        }
+
+        /* ==========================================================================
+           5. PLAYER INPUT & KEYBOARD FALLBACK
+           ========================================================================== */
+        function updateSelectedSide(side) {
+            if (gameState.selectedSide !== side) {
+                gameState.selectedSide = side;
+                gameState.dwellTimer = 0; // Reset dwell timer when shifting position
+                audio.playMove();
+
+                if (side === 'LEFT') gameState.targetRalphX = 220;
+                else if (side === 'RIGHT') gameState.targetRalphX = 580;
+                else gameState.targetRalphX = 400;
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            audio.init();
+            if (gameState.status !== 'PLAYING') return;
+
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                updateSelectedSide('LEFT');
+            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                updateSelectedSide('RIGHT');
+            } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+                updateSelectedSide('CENTER');
+            } else if (e.key === ' ' || e.key === 'Enter') {
+                if (gameState.selectedSide === 'LEFT' || gameState.selectedSide === 'RIGHT') {
+                    confirmChoice();
+                }
+            }
+        });
+
+        /* ==========================================================================
+           6. ANSWER VALIDATION & GAME LOGIC
+           ========================================================================== */
+        function confirmChoice() {
+            if (gameState.isPunching) return; // Prevent double trigger
+
+            const q = QUESTIONS_DATABASE[gameState.currentQuestionIdx];
+            const isLeft = gameState.selectedSide === 'LEFT';
+            const chosenOption = isLeft ? q.leftChoice : q.rightChoice;
+            const targetX = isLeft ? 220 : 580;
+
+            // Trigger Punch Animation
+            gameState.isPunching = true;
+            gameState.punchAnimFrame = 0;
+            audio.playPunch();
+
+            // Spawn brick dust particles
+            spawnParticles(targetX, 200, '#e2e8f0');
+
+            setTimeout(() => {
+                if (chosenOption.isCorrect) {
+                    // CORRECT ANSWER
+                    audio.playCorrect();
+                    const bonusPoints = (gameState.currentLevel * 100) + (gameState.timer * 10);
+                    gameState.score += bonusPoints;
+                    gameState.correctCount++;
+                    updateHUD();
+
+                    spawnParticles(targetX, 200, '#facc15'); // Gold particle explosion
+
+                    setTimeout(() => {
+                        gameState.currentQuestionIdx++;
+                        checkProgress();
+                    }, 800);
+
+                } else {
+                    // WRONG ANSWER
+                    audio.playWrong();
+                    gameState.lives--;
+                    updateHUD();
+
+                    spawnParticles(targetX, 200, '#ef4444'); // Red crash particle explosion
+
+                    if (gameState.lives <= 0) {
+                        setTimeout(() => endGame(false), 800);
+                    } else {
+                        setTimeout(() => {
+                            gameState.currentQuestionIdx++;
+                            checkProgress();
+                        }, 800);
+                    }
+                }
+            }, 250);
+        }
+
+        function handleTimeOut() {
+            audio.playWrong();
+            gameState.lives--;
+            updateHUD();
+
+            if (gameState.lives <= 0) {
+                endGame(false);
+            } else {
+                gameState.currentQuestionIdx++;
+                checkProgress();
+            }
+        }
+
+        function checkProgress() {
+            if (gameState.currentQuestionIdx >= QUESTIONS_DATABASE.length) {
+                endGame(true);
+            } else {
+                const nextQ = QUESTIONS_DATABASE[gameState.currentQuestionIdx];
+                if (nextQ.level !== gameState.currentLevel) {
+                    showLevelIntro(nextQ.level);
+                } else {
+                    setupCurrentQuestion();
+                }
+            }
+        }
+
+        function updateHUD() {
+            document.getElementById('hudScore').innerText = String(gameState.score).padStart(4, '0');
+            
+            let heartsStr = "";
+            for (let i = 0; i < 3; i++) {
+                heartsStr += i < gameState.lives ? "💖 " : "🖤 ";
+            }
+            document.getElementById('hudHearts').innerText = heartsStr;
+        }
+
+        /* ==========================================================================
+           7. VISUAL RENDERER & PIXEL-ART GRAPHICS
+           ========================================================================== */
+        function spawnParticles(x, y, color) {
+            for (let i = 0; i < 35; i++) {
+                gameState.particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 12,
+                    vy: (Math.random() - 0.5) * 12 - 3,
+                    size: Math.random() * 8 + 4,
+                    color: color,
+                    life: 1.0
+                });
+            }
+        }
+
+        function drawParticles() {
+            for (let i = gameState.particles.length - 1; i >= 0; i--) {
+                const p = gameState.particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.04;
+
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.fillRect(p.x, p.y, p.size, p.size); // Pixel art square particles
+                ctx.globalAlpha = 1.0;
+
+                if (p.life <= 0) {
+                    gameState.particles.splice(i, 1);
+                }
+            }
+        }
+
+        // Draw Ralph Character Sprite (Pixelated Arcade Style)
+        function drawRalph(x, y, isPunching, dwellRatio) {
+            ctx.save();
+            ctx.translate(x, y);
+
+            // Dwell Loading Circular Ring above Ralph
+            if (dwellRatio > 0 && (gameState.selectedSide === 'LEFT' || gameState.selectedSide === 'RIGHT')) {
+                ctx.beginPath();
+                ctx.arc(0, -90, 30, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 8;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(0, -90, 30, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * dwellRatio));
+                ctx.strokeStyle = '#ffcc00';
+                ctx.lineWidth = 8;
+                ctx.stroke();
+            }
+
+            // Overall Ralph Body
+            // Overalls / Pants (Denim Blue)
+            ctx.fillStyle = '#1e3a8a';
+            ctx.fillRect(-22, 10, 44, 35);
+
+            // Red Shirt / Plaid Body
+            ctx.fillStyle = '#dc2626';
+            ctx.fillRect(-26, -25, 52, 35);
+
+            // Shirt Straps
+            ctx.fillStyle = '#b91c1c';
+            ctx.fillRect(-18, -25, 8, 35);
+            ctx.fillRect(10, -25, 8, 35);
+
+            // Head (Skin Tone)
+            ctx.fillStyle = '#fca5a5';
+            ctx.fillRect(-20, -60, 40, 35);
+
+            // Spiky Hair (Brown)
+            ctx.fillStyle = '#78350f';
+            ctx.fillRect(-24, -70, 48, 15);
+            ctx.fillRect(-18, -74, 36, 6);
+
+            // Eyes & Eyebrows
+            ctx.fillStyle = '#451a03';
+            ctx.fillRect(-14, -54, 10, 4); // Left Eyebrow
+            ctx.fillRect(4, -54, 10, 4);  // Right Eyebrow
+
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(-12, -47, 5, 5); // Left Eye
+            ctx.fillRect(7, -47, 5, 5);  // Right Eye
+
+            // Big Arcade Fists
+            ctx.fillStyle = '#fca5a5';
+            if (isPunching) {
+                // Raised Fist Smash Pose!
+                ctx.fillRect(-38, -80, 22, 28);
+                ctx.fillRect(16, -80, 22, 28);
+                // Fist Knuckles Detail
+                ctx.fillStyle = '#b91c1c';
+                ctx.fillRect(-38, -84, 22, 6);
+                ctx.fillRect(16, -84, 22, 6);
+            } else {
+                // Normal Idle Giant Fists at sides
+                ctx.fillRect(-42, -15, 20, 25);
+                ctx.fillRect(22, -15, 20, 25);
+            }
+
+            ctx.restore();
+        }
+
+        // Draw Arcade Brick Block Answer Box
+        function drawAnswerBlock(x, y, optionText, isSelected) {
+            ctx.save();
+            ctx.translate(x, y);
+
+            const blockWidth = 260;
+            const blockHeight = 130;
+
+            // Block Outer Glow when selected
+            if (isSelected) {
+                ctx.shadowColor = '#ffcc00';
+                ctx.shadowBlur = 20;
+            }
+
+            // Brick Block Background
+            ctx.fillStyle = isSelected ? '#b91c1c' : '#7f1d1d';
+            ctx.strokeStyle = isSelected ? '#ffcc00' : '#f87171';
+            ctx.lineWidth = isSelected ? 6 : 4;
+
+            ctx.fillRect(-blockWidth / 2, -blockHeight / 2, blockWidth, blockHeight);
+            ctx.strokeRect(-blockWidth / 2, -blockHeight / 2, blockWidth, blockHeight);
+
+            // Pixel Brick Texture Lines
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-blockWidth / 2, 0); ctx.lineTo(blockWidth / 2, 0);
+            ctx.moveTo(0, -blockHeight / 2); ctx.lineTo(0, 0);
+            ctx.moveTo(-blockWidth / 4, 0); ctx.lineTo(-blockWidth / 4, blockHeight / 2);
+            ctx.moveTo(blockWidth / 4, 0); ctx.lineTo(blockWidth / 4, blockHeight / 2);
+            ctx.stroke();
+
+            // Text Rendering Inside Brick
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 15px "Press Start 2P", cursive';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#000000';
+            ctx.shadowBlur = 4;
+
+            // Word Wrapping for Option Text
+            const words = optionText.split(' ');
+            let line1 = "", line2 = "";
+            words.forEach(w => {
+                if ((line1 + w).length < 14) line1 += w + " ";
+                else line2 += w + " ";
+            });
+
+            ctx.fillText(line1.trim(), 0, line2 ? -8 : 6);
+            if (line2) ctx.fillText(line2.trim(), 0, 18);
+
+            ctx.restore();
+        }
+
+        // Render Main Canvas Display Frame
+        function renderGame() {
+            // Clear Background
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Arcade Brick Building Wall Backdrop
+            ctx.fillStyle = '#1e1b4b';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Decorative Windows / Bricks on Building
+            ctx.fillStyle = '#312e81';
+            for (let bx = 20; bx < canvas.width; bx += 80) {
+                for (let by = 20; by < canvas.height; by += 80) {
+                    ctx.fillRect(bx, by, 50, 40);
+                }
+            }
+
+            if (gameState.status === 'PLAYING') {
+                const q = QUESTIONS_DATABASE[gameState.currentQuestionIdx];
+
+                // 1. QUESTION BANNER PANEL
+                ctx.fillStyle = '#020617';
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 4;
+                ctx.fillRect(40, 15, 720, 85);
+                ctx.strokeRect(40, 15, 720, 85);
+
+                ctx.fillStyle = '#fef08a';
+                ctx.font = '13px "Press Start 2P", cursive';
+                ctx.textAlign = 'center';
+
+                // Question Wrapping
+                const words = q.question.split(' ');
+                let qLine1 = "", qLine2 = "";
+                words.forEach(w => {
+                    if ((qLine1 + w).length < 32) qLine1 += w + " ";
+                    else qLine2 += w + " ";
+                });
+                ctx.fillText(qLine1.trim(), 400, 48);
+                if (qLine2) ctx.fillText(qLine2.trim(), 400, 74);
+
+                // 2. LEFT & RIGHT ANSWER BRICK BLOCKS
+                drawAnswerBlock(220, 200, q.leftChoice.text, gameState.selectedSide === 'LEFT');
+                drawAnswerBlock(580, 200, q.rightChoice.text, gameState.selectedSide === 'RIGHT');
+
+                // 3. RALPH CHARACTER MOTION
+                gameState.ralphX += (gameState.targetRalphX - gameState.ralphX) * 0.25; // Smooth movement
+                const dwellRatio = gameState.dwellTimer / gameState.dwellDuration;
+                drawRalph(gameState.ralphX, gameState.ralphY, gameState.isPunching, dwellRatio);
+
+                // 4. SIDE DIRECTION BADGES
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '10px "Press Start 2P", cursive';
+                ctx.fillText("⬅️ KIRI", 100, 320);
+                ctx.fillText("KANAN ➡️", 700, 320);
+            }
+
+            drawParticles();
+        }
+
+        /* ==========================================================================
+           8. MAIN ANIMATION & DWELL LOOP
+           ========================================================================== */
+        function gameLoop(timestamp) {
+            if (!gameState.lastTimestamp) gameState.lastTimestamp = timestamp;
+            const dt = (timestamp - gameState.lastTimestamp) / 1000;
+            gameState.lastTimestamp = timestamp;
+
+            if (gameState.status === 'PLAYING') {
+                // Head Tracking Dwell Timer Auto-Trigger
+                if (gameState.selectedSide === 'LEFT' || gameState.selectedSide === 'RIGHT') {
+                    gameState.dwellTimer += dt;
+                    if (gameState.dwellTimer >= gameState.dwellDuration) {
+                        gameState.dwellTimer = 0;
+                        confirmChoice();
+                    }
+                } else {
+                    gameState.dwellTimer = 0;
+                }
+            }
+
+            renderGame();
+            requestAnimationFrame(gameLoop);
+        }
+
+        /* ==========================================================================
+           9. FLOW & SCREEN TRANSITIONS
+           ========================================================================== */
+        function startGame(mode) {
+            audio.init();
+            setControlMode(mode);
+
+            document.getElementById('startScreen').classList.add('hidden');
+            gameState.score = 0;
+            gameState.lives = 3;
+            gameState.currentQuestionIdx = 0;
+            gameState.correctCount = 0;
+            updateHUD();
+
+            showLevelIntro(1);
+        }
+
+        function showLevelIntro(lvl) {
+            gameState.status = 'LEVEL_INTRO';
+            const overlay = document.getElementById('levelOverlay');
+            const title = document.getElementById('levelTitle');
+            const desc = document.getElementById('levelDesc');
+
+            overlay.classList.remove('hidden');
+
+            if (lvl === 1) {
+                title.innerText = "LEVEL 1: MUDAH";
+                desc.innerText = "Kelajuan Perlahan. Teks Besar & Jelas. Fahami Asas Hukum & Tangan Istinja'!";
+            } else if (lvl === 2) {
+                title.innerText = "LEVEL 2: SEDERHANA";
+                desc.innerText = "Masa 15 Saat Setiap Soalan! Kenali Benda Kesat & Peraturan Beristinjak.";
+            } else if (lvl === 3) {
+                title.innerText = "LEVEL 3: SUSAH";
+                desc.innerText = "Cabaran Laju Rapid! Uji Adab Tandas & Hikmah Kebersihan Diri.";
+            }
+        }
+
+        function continueToLevel() {
+            document.getElementById('levelOverlay').classList.add('hidden');
+            gameState.status = 'PLAYING';
+            setupCurrentQuestion();
+        }
+
+        function endGame(isVictory) {
+            clearInterval(gameState.timerInterval);
+            gameState.status = isVictory ? 'VICTORY' : 'GAME_OVER';
+
+            const screen = document.getElementById('endScreen');
+            const emoji = document.getElementById('endEmoji');
+            const title = document.getElementById('endTitle');
+            const sub = document.getElementById('endSubtitle');
+
+            screen.classList.remove('hidden');
+
+            if (isVictory) {
+                audio.playVictory();
+                emoji.innerText = "👑";
+                title.innerText = "JUARA ARKED!";
+                title.className = "text-xl sm:text-3xl text-yellow-300 neon-gold mb-2";
+                sub.innerText = "Hebat! Ralph bangga! Anda telah menguasai adab & cara beristinjak dengan sempurna!";
+            } else {
+                audio.playGameOver();
+                emoji.innerText = "💥";
+                title.innerText = "GAME OVER!";
+                title.className = "text-xl sm:text-3xl text-red-500 neon-title mb-2";
+                sub.innerText = "Bangunan roboh! Jangan putus asa, mari cuba lagi!";
+            }
+
+            document.getElementById('finalScore').innerText = String(gameState.score).padStart(4, '0');
+            document.getElementById('finalAccuracy').innerText = `${gameState.correctCount} / ${QUESTIONS_DATABASE.length}`;
+            
+            let rank = "GANGSA 🥉";
+            if (gameState.score >= 1200) rank = "S-RANK 🌟";
+            else if (gameState.score >= 800) rank = "A-RANK 🎖️";
+            document.getElementById('finalRank').innerText = rank;
+        }
+
+        function resetGame() {
+            document.getElementById('endScreen').classList.add('hidden');
+            document.getElementById('startScreen').classList.remove('hidden');
+            gameState.status = 'START';
+        }
+
+        window.onload = function() {
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
